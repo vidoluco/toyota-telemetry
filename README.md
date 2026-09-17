@@ -85,6 +85,7 @@ coaching event pinned where it happened.
 |---|---|
 | Install | `uv sync && (cd web && npm ci && npm run build)` |
 | Credentials | `cp .env.example .env`, then fill in the MyToyota email and password |
+| Fuel price | `TOYOTA_FUEL_PRICE` and `TOYOTA_CURRENCY` in `.env`, or the price box in the dashboard. Unset, costs are a 1.75 EUR/l placeholder and say so |
 | Look before you leap | `uv run python scripts/probe.py` prints what your car actually returns |
 | First pull | `uv run toyota sync --full` |
 | Daily refresh | `uv run toyota sync`, or `uv run toyota schedule install` for a launchd agent at 07:15 |

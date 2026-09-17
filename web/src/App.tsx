@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { api } from './api/client'
+import type { Settings } from './api/types'
 import { RangePicker } from './components/RangePicker'
 import { clearApiCache, useApi } from './lib/useApi'
 import { Commute } from './pages/Commute'
@@ -58,6 +59,15 @@ function shortModel(model?: string | null): string | null {
   return cleaned.trim() || model
 }
 
+function priceTitle(s?: Settings): string {
+  switch (s?.fuel_price_source) {
+    case 'fills': return `Average of ${s.fuel_price_fills} fills in your tank log`
+    case 'env': return 'Price seeded from TOYOTA_FUEL_PRICE in .env'
+    case 'default': return 'Never set: every cost is a placeholder until you enter your real price'
+    default: return 'Price you set by hand'
+  }
+}
+
 function TopBar() {
   const { data: vehicle } = useApi('vehicle', () => api.vehicle())
   const year = vehicle?.manufactured?.slice(0, 4)
@@ -87,16 +97,24 @@ function SettingsButton() {
   const { data: settings, reload } = useApi('settings', () => api.settings())
   const [open, setOpen] = useState(false)
   const [price, setPrice] = useState<string | null>(null)
+  const [currency, setCurrency] = useState<string | null>(null)
   const save = async () => {
-    if (price != null) { await api.saveSettings({ fuel_price: Number(price) }); clearApiCache(); reload() }
+    if (price != null || currency != null) {
+      await api.saveSettings({
+        ...(price != null ? { fuel_price: Number(price) } : {}),
+        ...(currency != null ? { currency: currency.trim().toUpperCase() } : {}),
+      })
+      clearApiCache(); reload()
+    }
     setOpen(false)
   }
   return (
     <div className="relative">
       <button className="btn" onClick={() => setOpen((o) => !o)} aria-expanded={open}
-        title={settings?.fuel_price_source === 'fills' ? `Average of ${settings.fuel_price_fills} fills in your tank log` : 'Price you set by hand'}>
+        title={priceTitle(settings)}>
         <span className="num">{settings ? `${settings.fuel_price.toFixed(2)} ${settings.currency}/l` : '…'}</span>
         {settings?.fuel_price_source === 'fills' && <span className="chip !py-0" style={{ color: '#2ee6b7' }}>avg</span>}
+        {settings?.fuel_price_source === 'default' && <span className="chip !py-0" style={{ color: '#ffb224' }}>default</span>}
       </button>
       <AnimatePresence>
         {open && (
@@ -109,13 +127,18 @@ function SettingsButton() {
           >
             <div className="eyebrow mb-2">Fuel price per litre</div>
             <div className="flex gap-2">
-              <input className="field flex-1" type="number" step="0.01" defaultValue={settings?.fuel_price_manual} onChange={(e) => setPrice(e.target.value)} />
+              <input className="field flex-1" type="number" step="0.01" aria-label="Fuel price per litre"
+                defaultValue={settings?.fuel_price_manual} onChange={(e) => setPrice(e.target.value)} />
+              <input className="field w-16" type="text" maxLength={3} aria-label="Currency"
+                defaultValue={settings?.currency} onChange={(e) => setCurrency(e.target.value)} />
               <button className="btn on" onClick={save}>Save</button>
             </div>
             <div className="small mt-2">
               {settings?.fuel_price_source === 'fills'
                 ? `Costs use ${settings.fuel_price.toFixed(2)} ${settings.currency}/l, the litre-weighted average of the ${settings.fuel_price_fills} fills you logged. This box is the fallback for when there are none.`
-                : 'Used for every cost figure. Once you log fills with their price in the tank log, the average of those replaces it.'}
+                : settings?.fuel_price_source === 'default'
+                  ? 'Nobody has set this, so every cost on the dashboard is a placeholder. Type the price you actually pay, or set TOYOTA_FUEL_PRICE and TOYOTA_CURRENCY in .env.'
+                  : 'Used for every cost figure. Once you log fills with their price in the tank log, the average of those replaces it.'}
             </div>
           </motion.div>
         )}

@@ -24,6 +24,8 @@ from pytoyoda.const import (
     VEHICLE_TRIPS_ENDPOINT,
 )
 
+from toyota_telemetry.env import load_dotenv
+
 logger.disable("pytoyoda")
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -31,13 +33,7 @@ RAW_DIR = ROOT / "data" / "raw"
 
 
 def load_env(root: Path = ROOT) -> tuple[str, str]:
-    env = root / ".env"
-    if env.exists():
-        for line in env.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip())
+    load_dotenv(root)
     user = os.environ.get("MYTOYOTA_USERNAME")
     pwd = os.environ.get("MYTOYOTA_PASSWORD")
     if not user or not pwd:

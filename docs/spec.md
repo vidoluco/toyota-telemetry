@@ -31,7 +31,7 @@ speed profiles, and driver-score trends. No live telemetry, no OBD. Sync once a 
 - Hotspots: greedy clustering of bad events within a radius (default 60 m), ranked by count.
 - Event labels: coaching codes mapped to readable labels in `toyota_telemetry/labels.py`. The official
   meanings are not published; labels are inferred from type and good flag and marked so.
-- Cost: fuel litres times a configurable price (set in the interface; the average of logged fills wins when there are any).
+- Cost: fuel litres times a configurable price. Precedence: the litre-weighted average of logged fills, then the price set in the interface, then `TOYOTA_FUEL_PRICE` / `TOYOTA_CURRENCY` seeded at first run, then a 1.75 EUR/l placeholder that the interface marks as such.
 
 ## Architecture
 - `toyota_telemetry/` Python 3.12 package (uv): `toyota.py` raw client, `store.py` SQLite schema and

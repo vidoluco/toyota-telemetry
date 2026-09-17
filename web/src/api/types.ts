@@ -150,7 +150,7 @@ export type Monthly = {
   ev_share_time: number
 }
 
-export type Settings = { fuel_price: number; fuel_price_manual: number; fuel_price_source: 'fills' | 'manual'; fuel_price_fills: number; currency: string; tank_capacity_l: number }
+export type Settings = { fuel_price: number; fuel_price_manual: number; fuel_price_source: 'fills' | 'manual' | 'env' | 'default'; fuel_price_fills: number; currency: string; tank_capacity_l: number }
 export type SyncResult = { fetched_trips: number; new_trips: number; updated_trips: number; snapshot_ts: string }
 
 export type DateRange = { from?: string; to?: string }

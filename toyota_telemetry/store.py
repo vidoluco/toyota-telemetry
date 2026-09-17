@@ -11,7 +11,10 @@ from pathlib import Path
 from typing import Any
 
 from toyota_telemetry import derive
+from toyota_telemetry.env import load_dotenv
 from toyota_telemetry.labels import is_harsh, label
+
+load_dotenv()
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = Path(os.environ.get("TOYOTA_TELEMETRY_DB") or ROOT / "data" / "telemetry.db")
@@ -55,7 +58,22 @@ CREATE TABLE IF NOT EXISTS services (
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 """
 
-DEFAULT_SETTINGS = {"fuel_price": "1.75", "currency": "EUR", "tank_capacity_l": "36"}  # set your own price in the UI; 36 l is the Yaris Hybrid tank
+# A fuel price is local to a country and stale within a week, so no shipped number is right
+# for everyone. TOYOTA_FUEL_PRICE and TOYOTA_CURRENCY in .env seed a fresh database; the UI
+# and the tank log override them afterwards. 36 l is the Yaris Hybrid tank.
+FUEL_PRICE_ENV = "TOYOTA_FUEL_PRICE"
+CURRENCY_ENV = "TOYOTA_CURRENCY"
+FALLBACK_FUEL_PRICE = "1.75"
+FALLBACK_CURRENCY = "EUR"
+DEFAULT_SETTINGS = {"fuel_price": FALLBACK_FUEL_PRICE, "currency": FALLBACK_CURRENCY, "tank_capacity_l": "36"}
+
+
+def seed_settings() -> dict[str, str]:
+    """``DEFAULT_SETTINGS`` with the environment applied. Read at connect time, not at
+    import, so it does not matter whether ``.env`` was loaded before this module."""
+    return {**DEFAULT_SETTINGS,
+            "fuel_price": os.environ.get(FUEL_PRICE_ENV) or FALLBACK_FUEL_PRICE,
+            "currency": os.environ.get(CURRENCY_ENV) or FALLBACK_CURRENCY}
 
 
 def connect(path: Path = DB_PATH) -> sqlite3.Connection:
@@ -63,8 +81,12 @@ def connect(path: Path = DB_PATH) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
-    for k, v in DEFAULT_SETTINGS.items():
+    seeding = conn.execute("SELECT 1 FROM settings WHERE key = 'fuel_price'").fetchone() is None
+    for k, v in seed_settings().items():
         conn.execute("INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)", (k, v))
+    if seeding:
+        origin = "env" if os.environ.get(FUEL_PRICE_ENV) else "default"
+        conn.execute("INSERT OR REPLACE INTO settings(key, value) VALUES ('fuel_price_origin', ?)", (origin,))
     conn.commit()
     return conn
 
@@ -75,13 +97,17 @@ def get_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     Every cost in the app uses ``fuel_price``. When the tank log holds fills with a real
     price per litre, that average wins over the number typed in settings: it is what the
     fuel actually cost. ``fuel_price_manual`` keeps the typed value, ``fuel_price_source``
-    says which one is in use.
+    says where the price in use comes from: ``fills`` (tank log average), ``manual``
+    (typed in the UI), ``env`` (seeded from TOYOTA_FUEL_PRICE) or ``default`` (never
+    configured, so every cost figure is a placeholder). Databases created before the
+    origin was recorded read as ``manual``, which is the assumption that does not nag.
     """
     rows = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM settings")}
     manual = float(rows.get("fuel_price", DEFAULT_SETTINGS["fuel_price"]))
     avg, fills = _fill_price_average(conn)
+    origin = rows.get("fuel_price_origin", "manual")
     return {"fuel_price": avg if avg else manual, "fuel_price_manual": manual,
-            "fuel_price_source": "fills" if avg else "manual", "fuel_price_fills": fills,
+            "fuel_price_source": "fills" if avg else origin, "fuel_price_fills": fills,
             "currency": rows.get("currency", DEFAULT_SETTINGS["currency"]),
             "tank_capacity_l": float(rows.get("tank_capacity_l", DEFAULT_SETTINGS["tank_capacity_l"]))}
 
@@ -104,6 +130,8 @@ def set_settings(conn: sqlite3.Connection, **values: Any) -> dict[str, Any]:
     for k, v in values.items():
         if v is not None and k in DEFAULT_SETTINGS:
             conn.execute("INSERT OR REPLACE INTO settings(key, value) VALUES (?, ?)", (k, str(v)))
+    if values.get("fuel_price") is not None:
+        conn.execute("INSERT OR REPLACE INTO settings(key, value) VALUES ('fuel_price_origin', 'manual')")
     conn.commit()
     return get_settings(conn)
 
