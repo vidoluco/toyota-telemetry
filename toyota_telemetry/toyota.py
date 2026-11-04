@@ -6,6 +6,7 @@ every call here reads the raw JSON straight from the controller.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from datetime import date, timedelta
@@ -30,6 +31,7 @@ logger.disable("pytoyoda")
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
+ROUTE_FETCH_CONCURRENCY = 5
 
 
 def load_env(root: Path = ROOT) -> tuple[str, str]:
@@ -75,8 +77,13 @@ class ToyotaRaw:
     async def service_history(self, vin: str) -> Any:
         return (await self.get(VEHICLE_SERVICE_HISTORY_ENDPONT, vin)).get("payload")
 
+    async def trip_route(self, vin: str, trip_id: str) -> list[dict[str, Any]]:
+        """GPS route of one trip. Since 2026-09-30 only the detail endpoint serves it."""
+        detail = (await self.get(f"/v1/trips/{trip_id}", vin)).get("payload") or {}
+        return detail.get("route") or []
+
     async def trips(self, vin: str, from_date: date, to_date: date, *, summary: bool = False) -> dict[str, Any]:
-        """All trips in [from_date, to_date] with full routes, paginated. Returns the merged payload."""
+        """All trips in [from_date, to_date], paginated, without routes. Returns the merged payload."""
         merged: dict[str, Any] = {"trips": []}
         offset = 0
         while True:
@@ -102,6 +109,40 @@ def month_windows(start: date, end: date) -> list[tuple[date, date]]:
         out.append((cur, min(nxt - timedelta(days=1), end)))
         cur = nxt
     return out
+
+
+def cached_routes(path: Path) -> dict[str, list[dict[str, Any]]]:
+    """Routes already saved in a month file, by trip id."""
+    if not path.exists():
+        return {}
+    trips = json.loads(path.read_text()).get("trips") or []
+    return {str(t["id"]): t["route"] for t in trips if t.get("route")}
+
+
+async def attach_routes(api: Any, vin: str, trips: list[dict[str, Any]], known: dict[str, list[dict[str, Any]]]) -> int:
+    """Give every trip its route, from ``known`` or the API. Returns how many are still missing.
+
+    The cache is the only archive, so a saved route is reused rather than downloaded again.
+    A failed download leaves that trip without a route and the next sync retries it.
+    """
+    gate = asyncio.Semaphore(ROUTE_FETCH_CONCURRENCY)
+
+    async def fill(trip: dict[str, Any]) -> None:
+        tid = str(trip["id"])
+        if tid in known:
+            trip["route"] = known[tid]
+        elif not trip.get("route"):
+            async with gate:
+                try:
+                    route = await api.trip_route(vin, tid)
+                except Exception as e:
+                    print(f"route of trip {tid} not downloaded: {type(e).__name__}")
+                    return
+            if route:
+                trip["route"] = route
+
+    await asyncio.gather(*(fill(t) for t in trips))
+    return sum(1 for t in trips if not t.get("route"))
 
 
 async def pull_all(vin: str, start: date, end: date, *, refresh_from: date | None = None) -> list[Path]:
@@ -131,7 +172,8 @@ async def pull_all(vin: str, start: date, end: date, *, refresh_from: date | Non
             if p.exists() and (refresh_from is None or b < refresh_from):
                 continue
             payload = await api.trips(vin, a, b, summary=True)
+            missing = await attach_routes(api, vin, payload["trips"], cached_routes(p))
             p.write_text(json.dumps(payload, indent=1, default=str))
             written.append(p)
-            print(f"{a:%Y-%m}: {len(payload['trips'])} trips")
+            print(f"{a:%Y-%m}: {len(payload['trips'])} trips, {missing} without a route")
     return written

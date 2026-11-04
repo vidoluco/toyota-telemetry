@@ -32,6 +32,8 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def cumulative_distance_m(points: list[tuple[float, float]]) -> list[float]:
+    if not points:
+        return []
     out = [0.0]
     for (a_lat, a_lon), (b_lat, b_lon) in itertools.pairwise(points):
         out.append(out[-1] + haversine_m(a_lat, a_lon, b_lat, b_lon))

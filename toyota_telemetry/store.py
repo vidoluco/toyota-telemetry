@@ -147,6 +147,8 @@ def load_trip(conn: sqlite3.Connection, trip: dict[str, Any], elevation: derive.
     hdc = trip.get("hdc") or {}
     tid = str(trip["id"])
     route = trip.get("route") or []
+    if not route and conn.execute("SELECT 1 FROM route_points WHERE trip_id = ? LIMIT 1", (tid,)).fetchone():
+        return  # a reload without a route must not erase the one already stored
     events = trip.get("behaviours") or []
     points = [(p["lat"], p["lon"]) for p in route]
     start_ts = derive.parse_ts(s["startTs"])

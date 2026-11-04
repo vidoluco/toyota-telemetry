@@ -98,3 +98,23 @@ def test_month_file_loads_summaries(tmp_path):
     assert store.load_month_file(c, p, elevation=None) == 1
     assert analytics.monthly(c)[0]["scores"]["constant_speed"] == 70
     assert c.execute("SELECT date FROM daily_stats").fetchone()["date"] == "2026-09-01"
+
+
+def routeless(trip_id: str = "t1") -> dict:
+    return {**{k: v for k, v in RAW_TRIP.items() if k != "route"}, "id": trip_id}
+
+
+def test_trip_without_route_loads_instead_of_crashing(tmp_path: Path):
+    c = store.connect(tmp_path / "r.db")
+    store.load_trip(c, routeless("no-route"), elevation=None)
+    c.commit()
+    r = c.execute("SELECT * FROM trips WHERE id = 'no-route'").fetchone()
+    assert r["n_points"] == 0 and r["n_events"] == 3 and r["fuel_ml"] == 200.0
+    assert analytics.summary(c)["trips"] == 1
+
+
+def test_routeless_reload_keeps_the_stored_route(conn):
+    store.load_trip(conn, routeless(), elevation=None)
+    assert conn.execute("SELECT COUNT(*) c FROM route_points").fetchone()["c"] == 11
+    r = conn.execute("SELECT n_points, overspeed_m FROM trips").fetchone()
+    assert r["n_points"] == 11 and r["overspeed_m"] > 0
