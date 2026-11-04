@@ -11,6 +11,9 @@ speed profiles, and driver-score trends. No live telemetry, no OBD. Sync once a 
 - Auth: MyToyota credentials, pytoyoda 5.2 controller. pytoyoda's typed vehicle model
   rejects this car (`remoteDisplay` missing), so all reads go through the raw controller
   (`toyota_telemetry/toyota.py`).
+- `/v1/trips/{id}`: since 2026-09-30 the only source of a trip's `route`; the list below ignores
+  `route=true` and omits it, for old trips too. One extra call per trip, so a saved route is never
+  downloaded again. `hdc` no longer carries charge/eco/power, and no analysis depends on them.
 - `/v1/trips?route=true`: per trip `summary` (start/end ts and lat/lon, length m, duration s,
   averageSpeed, fuelConsumption ml, nightTrip), `scores` (global, acceleration, braking,
   advice), `hdc` (ev/charge/eco/power time and distance), `route` points (lat, lon, isEv,

@@ -97,3 +97,7 @@ def test_gps_spike_does_not_become_speed():
 
 def test_percentile():
     assert derive.percentile([1, 2, 3, 4, 100], 0.5) == 3 and derive.percentile([], 0.9) == 0.0
+
+
+def test_cumulative_distance_of_no_points_is_empty():
+    assert derive.cumulative_distance_m([]) == []
