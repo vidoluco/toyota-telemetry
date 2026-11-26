@@ -41,7 +41,7 @@ export function Overview() {
     <div className="grid gap-4">
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <h1 className="display">Every kilometre, every hard stop.</h1>
+          <h1 className="display">Driving overview</h1>
           <p className="small mt-1">{v ? `${v.trips_total} trips since ${fmt.dateLong(v.history_from)} · odometer ${fmt.int(v.odometer_km)} km` : 'Loading vehicle…'}</p>
         </div>
       </div>
