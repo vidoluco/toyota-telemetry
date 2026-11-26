@@ -15,6 +15,9 @@ type ColorMode = 'ev' | 'speed' | 'overspeed'
 const spring = { type: 'spring', bounce: 0, duration: 0.35 } as const
 const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
+/** Below Tailwind's md breakpoint the side panels become overlays, so map padding must not reserve room for them. */
+const isPhone = () => window.matchMedia('(max-width: 767px)').matches
+
 export function MapPage() {
   const [range] = useRange()
   const k = rangeKey(range)
@@ -40,6 +43,9 @@ export function MapPage() {
   const switchBasemap = (b: Basemap) => { setBasemap(b); setBasemapState(b) }
   const [orbit, setOrbit] = useState(false)
   const [flying, setFlying] = useState<{ id: string; frac: number } | null>(null)
+  // Phone only: the layer controls and the side list fold away so the map stays visible.
+  const [layersOpen, setLayersOpen] = useState(false)
+  const [listOpen, setListOpen] = useState(false)
   const stopper = useRef<(() => void) | null>(null)
   const didFit = useRef(false)
   const selected = sp.get('trip')
@@ -98,7 +104,7 @@ export function MapPage() {
     if (didFit.current || routes.features.length === 0) return
     const b = new maplibregl.LngLatBounds()
     for (const f of routes.features) for (const c of f.geometry.coordinates) b.extend(c as [number, number])
-    if (!b.isEmpty()) { m.fitBounds(b, { padding: { top: 90, bottom: 60, left: 60, right: 380 }, duration: 0, maxZoom: 13 }); didFit.current = true }
+    if (!b.isEmpty()) { m.fitBounds(b, { padding: isPhone() ? { top: 70, bottom: 40, left: 24, right: 24 } : { top: 90, bottom: 60, left: 60, right: 380 }, duration: 0, maxZoom: 13 }); didFit.current = true }
   }, [ready, routes])
   useEffect(() => {
     const m = mapRef.current; if (!ready || !m || !events) return
@@ -136,7 +142,8 @@ export function MapPage() {
     m.setPaintProperty('routes-glow', 'line-opacity', selected ? 0.04 : 0.12)
     if (selectedTrip && !flying) {
       const bounds: [[number, number], [number, number]] = [[selectedTrip.bbox[0], selectedTrip.bbox[1]], [selectedTrip.bbox[2], selectedTrip.bbox[3]]]
-      const pad = { top: 80, bottom: 80, left: 380, right: 80 }
+      // Phone: the trip card is a sheet over the bottom 45% of the map, not a column on the side.
+      const pad = isPhone() ? { top: 70, bottom: Math.round(m.getContainer().clientHeight * 0.45) + 16, left: 24, right: 24 } : { top: 80, bottom: 80, left: 380, right: 80 }
       approachBounds(m, bounds, { padding: pad, maxZoom: 14.5, pitch: 50, bearing: m.getBearing(), animate: !reduced })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -180,8 +187,12 @@ export function MapPage() {
       <div ref={box} className="h-full w-full" />
 
       {/* Top-left controls */}
-      <div className="absolute left-4 top-4 flex flex-col gap-2 z-10">
-        <div className="material rounded-xl p-2 flex items-center gap-1.5 flex-wrap">
+      <div className="absolute left-2 right-2 top-2 md:left-4 md:right-auto md:top-4 flex flex-col gap-2 z-10 max-h-[calc(100%-1rem)] overflow-y-auto md:overflow-visible md:max-h-none">
+        <div className="material rounded-xl p-1.5 flex gap-1.5 self-start md:hidden">
+          <button className="btn" aria-pressed={layersOpen} onClick={() => setLayersOpen((o) => !o)}>Layers</button>
+          {!selectedTrip && <button className="btn" aria-pressed={listOpen} onClick={() => setListOpen((o) => !o)}>Hotspots list</button>}
+        </div>
+        <div className={`${layersOpen ? 'flex' : 'hidden'} md:flex material rounded-xl p-2 items-center gap-1.5 flex-wrap`}>
           <span className="eyebrow px-1">Map</span>
           <button className="btn" aria-pressed={basemap === 'light'} onClick={() => switchBasemap('light')}>Light</button>
           <button className="btn" aria-pressed={basemap === 'dark'} onClick={() => switchBasemap('dark')}>Dark</button>
@@ -194,18 +205,18 @@ export function MapPage() {
           <button className="btn" aria-pressed={showStreets} onClick={() => { setShowStreets((s) => !s); setPanel('streets') }}>Speeding</button>
           <button className="btn" aria-pressed={showGood} disabled={!showEvents} onClick={() => setShowGood((s) => !s)}>Smooth too</button>
         </div>
-        <div className="material rounded-xl p-2 flex items-center gap-1.5 flex-wrap">
+        <div className={`${layersOpen ? 'flex' : 'hidden'} md:flex material rounded-xl p-2 items-center gap-1.5 flex-wrap`}>
           <span className="eyebrow px-1">Camera</span>
           <button className="btn" aria-pressed={orbit} onClick={toggleOrbit}>{orbit ? 'Stop orbit' : 'Orbit'}</button>
           {hilly && <button className="btn" onClick={() => goto(hilly.camera)} title={`Your hilliest trip: ${Math.round(hilly.trip.climb_m ?? 0)} m of climb`}>Hills</button>}
           {home && <button className="btn" onClick={() => goto(home)}>Home area</button>}
           <button className="btn" disabled={!selected} onClick={flyTrip} aria-pressed={!!flying}>{flying ? `Flying ${Math.round(flying.frac * 100)}%` : 'Fly the trip'}</button>
         </div>
-        <Legend color={color} />
+        <div className={`${layersOpen ? 'block' : 'hidden'} md:block`}><Legend color={color} /></div>
       </div>
 
       {/* Right: hotspots or selected trip */}
-      <aside className="absolute right-4 top-4 bottom-4 w-[340px] z-10 flex flex-col gap-2 pointer-events-none">
+      <aside className={`${selectedTrip || listOpen ? 'flex' : 'hidden'} md:flex absolute left-2 right-2 bottom-2 max-h-[45%] md:left-auto md:right-4 md:top-4 md:bottom-4 md:max-h-none md:w-[340px] z-10 flex-col gap-2 pointer-events-none`}>
         <AnimatePresence mode="popLayout">
           {selectedTrip ? (
             <motion.div key="trip" className="material rounded-2xl p-4 pointer-events-auto" initial={reduced ? false : { opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={reduced ? undefined : { opacity: 0, x: 16 }} transition={spring}>
@@ -287,7 +298,7 @@ export function MapPage() {
       </aside>
 
       {!ready && <div className="absolute inset-0 grid place-items-center pointer-events-none"><div className="material rounded-xl px-4 py-2 small">Loading terrain…</div></div>}
-      <div className="absolute left-4 bottom-4 z-10 small material rounded-lg px-2 py-1">3D terrain · drag with right mouse or ⌘ to tilt · <Link to="/trips" className="underline">all trips</Link></div>
+      <div className="hidden md:block absolute left-4 bottom-4 z-10 small material rounded-lg px-2 py-1">3D terrain · drag with right mouse or ⌘ to tilt · <Link to="/trips" className="underline">all trips</Link></div>
     </div>
   )
 }

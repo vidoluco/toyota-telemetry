@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import os
+import secrets
 import sqlite3
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -19,6 +23,45 @@ ROOT = Path(__file__).resolve().parent.parent
 WEB_DIST = ROOT / "web" / "dist"
 
 app = FastAPI(title="Yaris telemetry", version="0.1.0")
+
+LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+KEY_COOKIE = "tt_key"
+KEY_MAX_AGE = 365 * 24 * 3600
+
+
+def _matches(given: str, password: str) -> bool:
+    return bool(given) and secrets.compare_digest(given.encode(), password.encode())
+
+
+@app.middleware("http")
+async def lan_password(request: Request, call_next: Any) -> Any:
+    """Ask for ``TOYOTA_TELEMETRY_PASSWORD`` from any client that is not this machine. Unset,
+    the dashboard stays open, which is only safe on 127.0.0.1.
+
+    A phone opens ``/?key=<password>`` once (the QR from ``toyota serve --lan``): the key is
+    moved into a cookie and the query string dropped, so later visits need nothing. HTTP Basic
+    (any username) also works, for clients that cannot follow a link."""
+    password = os.environ.get("TOYOTA_TELEMETRY_PASSWORD")
+    client = request.client.host if request.client else ""
+    if not password or client in LOOPBACK:
+        return await call_next(request)
+    if _matches(request.query_params.get("key", ""), password):
+        rest = [(k, v) for k, v in request.query_params.multi_items() if k != "key"]
+        target = request.url.path + ("?" + urlencode(rest) if rest else "")
+        response = RedirectResponse(target, status_code=303)
+        response.set_cookie(KEY_COOKIE, password, max_age=KEY_MAX_AGE, httponly=True, samesite="strict")
+        return response
+    if _matches(request.cookies.get(KEY_COOKIE, ""), password):
+        return await call_next(request)
+    header = request.headers.get("authorization", "")
+    if header.lower().startswith("basic "):
+        try:
+            _, _, given = base64.b64decode(header[6:]).decode().partition(":")
+        except (ValueError, UnicodeDecodeError):
+            given = ""
+        if _matches(given, password):
+            return await call_next(request)
+    return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="toyota-telemetry"'})
 
 
 def db() -> sqlite3.Connection:
@@ -82,20 +125,21 @@ def trip(trip_id: str) -> Any:
 
 
 @app.get("/api/routes.geojson")
-def routes(from_: str | None = Query(None, alias="from"), to: str | None = None,
-           tolerance: float = 0.00005) -> Any:
+def routes(from_: str | None = Query(None, alias="from"), to: str | None = None, tolerance: float = 0.00005) -> Any:
     return JSONResponse(analytics.routes_geojson(db(), from_, to, tolerance))
 
 
 @app.get("/api/events.geojson")
-def events(from_: str | None = Query(None, alias="from"), to: str | None = None,
-           type: str | None = None, good: bool | None = None) -> Any:
+def events(
+    from_: str | None = Query(None, alias="from"), to: str | None = None, type: str | None = None, good: bool | None = None
+) -> Any:
     return JSONResponse(analytics.events_geojson(db(), from_, to, type, good))
 
 
 @app.get("/api/hotspots")
-def hotspots(from_: str | None = Query(None, alias="from"), to: str | None = None,
-             radius_m: float = 60.0, min_count: int = 2) -> Any:
+def hotspots(
+    from_: str | None = Query(None, alias="from"), to: str | None = None, radius_m: float = 60.0, min_count: int = 2
+) -> Any:
     return analytics.hotspots(db(), from_, to, radius_m, min_count)
 
 
@@ -109,6 +153,11 @@ def monthly() -> Any:
     return analytics.monthly(db())
 
 
+@app.get("/api/consumption")
+def consumption() -> Any:
+    return analytics.consumption(db())
+
+
 @app.get("/api/settings")
 def get_settings() -> Any:
     return store.get_settings(db())
@@ -120,6 +169,7 @@ def put_settings(body: Settings) -> Any:
 
 
 # ---- places, journeys, commute coach
+
 
 @app.get("/api/places")
 def get_places(from_: str | None = Query(None, alias="from"), to: str | None = None) -> Any:
@@ -154,6 +204,7 @@ def get_chains(from_: str | None = Query(None, alias="from"), to: str | None = N
 
 # ---- streets where you speed
 
+
 @app.get("/api/streets")
 def get_streets(from_: str | None = Query(None, alias="from"), to: str | None = None, min_trips: int = 2) -> Any:
     return streets.clusters(db(), from_, to, min_trips=min_trips)
@@ -165,6 +216,7 @@ def get_streets_geojson(from_: str | None = Query(None, alias="from"), to: str |
 
 
 # ---- tank log
+
 
 @app.get("/api/tank")
 def get_tank() -> Any:
@@ -188,6 +240,7 @@ def post_fill(body: ManualFill) -> Any:
 
 # ---- insights
 
+
 @app.get("/api/insights/weeks")
 def get_weeks() -> Any:
     return insights.weeks_available(db())
@@ -207,8 +260,12 @@ async def sync(days: int = 14) -> Any:
     before = {r["id"] for r in db().execute("SELECT id FROM trips")}
     result = await asyncio.to_thread(run_sync, date.today() - timedelta(days=days), False)
     after = {r["id"] for r in db().execute("SELECT id FROM trips")}
-    return {"fetched_trips": result["loaded"], "new_trips": len(after - before),
-            "updated_trips": result["loaded"] - len(after - before), "snapshot_ts": result["snapshot_ts"]}
+    return {
+        "fetched_trips": result["loaded"],
+        "new_trips": len(after - before),
+        "updated_trips": result["loaded"] - len(after - before),
+        "snapshot_ts": result["snapshot_ts"],
+    }
 
 
 if WEB_DIST.exists():

@@ -93,6 +93,16 @@ table.trips tr.row:hover td { background: rgb(255 255 255 / 0.035); cursor: poin
 .maplibregl-ctrl-group { background: rgb(16 21 28 / 0.7) !important; backdrop-filter: blur(12px); border: 1px solid rgb(255 255 255 / 0.1); }
 .maplibregl-ctrl-group button { filter: invert(1) hue-rotate(180deg); }
 
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.nav-link { white-space: nowrap; }
+
+/* Phone: iOS zooms into any field under 16px on focus, and the page then stays zoomed. */
+@media (max-width: 767px) {
+  input.field, input[type="date"].field { font-size: 16px; }
+  input[type="date"].field { width: 8.75rem; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }

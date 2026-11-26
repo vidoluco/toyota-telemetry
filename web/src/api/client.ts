@@ -1,5 +1,5 @@
 import type {
-  Chain, Commute, DateRange, Digest, EventCollection, Fill, Heatmap, Hotspot, Journey, Monthly, Place, RouteCollection,
+  Chain, Commute, ConsumptionReport, DateRange, Digest, EventCollection, Fill, Heatmap, Hotspot, Journey, Monthly, Place, RouteCollection,
   Settings, Street, StreetCollection, Summary, SyncResult, Tank, Trip, TripDetail, Vehicle, Week,
 } from './types'
 
@@ -42,6 +42,7 @@ type Api = {
   addFill(body: { ts: string; litres: number; price_per_l?: number; odometer_km?: number; note?: string }): Promise<Fill>
   weeks(): Promise<Week[]>
   insights(week?: string): Promise<Digest>
+  consumption(): Promise<ConsumptionReport>
 }
 
 const live: Api = {
@@ -70,6 +71,7 @@ const live: Api = {
   addFill: (body) => http('/tank/fills', { method: 'POST', body: JSON.stringify(body) }),
   weeks: () => http('/insights/weeks'),
   insights: (week) => http(`/insights${qs({ week })}`),
+  consumption: () => http('/consumption'),
 }
 
 export const api: Api = live

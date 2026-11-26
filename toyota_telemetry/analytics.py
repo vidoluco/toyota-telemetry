@@ -32,19 +32,32 @@ def _trip_dict(r: sqlite3.Row, settings: dict[str, Any]) -> dict[str, Any]:
     total_mode = (r["mode0_m"] or 0) + (r["mode1_m"] or 0) + (r["mode2_m"] or 0)
     route_m = max(total_mode, 1.0)
     return {
-        "id": r["id"], "start_ts": r["start_ts"], "end_ts": r["end_ts"],
-        "start": {"lat": r["start_lat"], "lon": r["start_lon"]}, "end": {"lat": r["end_lat"], "lon": r["end_lon"]},
-        "km": round(km, 2), "duration_s": r["duration_s"], "avg_speed": r["avg_speed"],
+        "id": r["id"],
+        "start_ts": r["start_ts"],
+        "end_ts": r["end_ts"],
+        "start": {"lat": r["start_lat"], "lon": r["start_lon"]},
+        "end": {"lat": r["end_lat"], "lon": r["end_lon"]},
+        "km": round(km, 2),
+        "duration_s": r["duration_s"],
+        "avg_speed": r["avg_speed"],
         "fuel_l": round(fuel_l, 3),
-        "l_per_100km": round(fuel_l / km * 100, 2) if km > 0.2 else None, "cost": _cost(fuel_l, settings),
+        "l_per_100km": round(fuel_l / km * 100, 2) if km > 0.2 else None,
+        "cost": _cost(fuel_l, settings),
         "ev_km": round((r["ev_dist"] or 0) / 1000, 2),
-        "ev_share": round((r["ev_dist"] or 0) / (r["length_m"] or 1), 3), "night": bool(r["night"]),
-        "scores": {"global": r["score_global"], "acceleration": r["score_accel"], "braking": r["score_brake"],
-                   "advice": r["score_advice"]},
+        "ev_share": round((r["ev_dist"] or 0) / (r["length_m"] or 1), 3),
+        "night": bool(r["night"]),
+        "scores": {
+            "global": r["score_global"],
+            "acceleration": r["score_accel"],
+            "braking": r["score_brake"],
+            "advice": r["score_advice"],
+        },
         "events": {"harsh_brake": r["harsh_brake"], "harsh_accel": r["harsh_accel"], "good": r["good_events"]},
-        "overspeed_km": round((r["overspeed_m"] or 0) / 1000, 2), "highway_km": round((r["highway_m"] or 0) / 1000, 2),
+        "overspeed_km": round((r["overspeed_m"] or 0) / 1000, 2),
+        "highway_km": round((r["highway_m"] or 0) / 1000, 2),
         "mode_share": {MODES[m]: round((r[f"mode{m}_m"] or 0) / route_m, 3) for m in (0, 1, 2)},
-        "climb_m": r["climb_m"], "descent_m": r["descent_m"],
+        "climb_m": r["climb_m"],
+        "descent_m": r["descent_m"],
         "bbox": [r["min_lon"], r["min_lat"], r["max_lon"], r["max_lat"]],
     }
 
@@ -63,15 +76,29 @@ def trip_ids(conn: sqlite3.Connection, from_date: str | None, to_date: str | Non
 
 def _event_feature(r: sqlite3.Row) -> dict[str, Any]:
     return {
-        "type": "Feature", "geometry": {"type": "Point", "coordinates": [r["lon"], r["lat"]]},
-        "properties": {"id": r["id"], "trip_id": r["trip_id"], "ts": r["ts"], "type": r["type"],
-                       "good": bool(r["good"]), "code": r["code"], "label": r["label"],
-                       "severity": severity_or_none(r["severity"]), "slope": r["slope"]},
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [r["lon"], r["lat"]]},
+        "properties": {
+            "id": r["id"],
+            "trip_id": r["trip_id"],
+            "ts": r["ts"],
+            "type": r["type"],
+            "good": bool(r["good"]),
+            "code": r["code"],
+            "label": r["label"],
+            "severity": severity_or_none(r["severity"]),
+            "slope": r["slope"],
+        },
     }
 
 
-def events_geojson(conn: sqlite3.Connection, from_date: str | None = None, to_date: str | None = None,
-                   event_type: str | None = None, good: bool | None = None) -> dict[str, Any]:
+def events_geojson(
+    conn: sqlite3.Connection,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    event_type: str | None = None,
+    good: bool | None = None,
+) -> dict[str, Any]:
     where, params = _range_clause(from_date, to_date, "ts")
     extra = []
     if event_type:
@@ -103,13 +130,21 @@ def _route_features(conn: sqlite3.Connection, trip_id: str, start_ts: str, toler
             pts = derive.simplify(pts, tolerance)
         speeds = [r["speed_est"] or 0 for r in seg]
         own = seg[1]  # seg[0] is the carried-over last point of the previous segment
-        features.append({
-            "type": "Feature",
-            "geometry": {"type": "LineString", "coordinates": [[lon, lat] for lat, lon in pts]},
-            "properties": {"trip_id": trip_id, "is_ev": bool(own["is_ev"]), "mode": own["mode"],
-                           "overspeed": bool(own["overspeed"]), "highway": bool(own["highway"]),
-                           "speed_est": round(sum(speeds) / len(speeds), 1), "start_ts": start_ts},
-        })
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "LineString", "coordinates": [[lon, lat] for lat, lon in pts]},
+                "properties": {
+                    "trip_id": trip_id,
+                    "is_ev": bool(own["is_ev"]),
+                    "mode": own["mode"],
+                    "overspeed": bool(own["overspeed"]),
+                    "highway": bool(own["highway"]),
+                    "speed_est": round(sum(speeds) / len(speeds), 1),
+                    "start_ts": start_ts,
+                },
+            }
+        )
 
     prev_key = None
     for r in rows:
@@ -124,8 +159,9 @@ def _route_features(conn: sqlite3.Connection, trip_id: str, start_ts: str, toler
     return features
 
 
-def routes_geojson(conn: sqlite3.Connection, from_date: str | None = None, to_date: str | None = None,
-                   tolerance: float = 0.00005) -> dict[str, Any]:
+def routes_geojson(
+    conn: sqlite3.Connection, from_date: str | None = None, to_date: str | None = None, tolerance: float = 0.00005
+) -> dict[str, Any]:
     where, params = _range_clause(from_date, to_date)
     feats: list[dict] = []
     for r in conn.execute(f"SELECT id, start_ts FROM trips{where} ORDER BY start_ts", params):
@@ -142,10 +178,16 @@ def trip_detail(conn: sqlite3.Connection, trip_id: str) -> dict[str, Any] | None
     ev = conn.execute("SELECT * FROM events WHERE trip_id = ? ORDER BY ts", (trip_id,)).fetchall()
     d["events_geojson"] = {"type": "FeatureCollection", "features": [_event_feature(r) for r in ev]}
     d["profile"] = [
-        {"t": round(r["t_est"], 1), "km": round(r["dist_m"] / 1000, 3), "speed_est": round(r["speed_est"] or 0, 1),
-         "elevation_m": None if r["elev_m"] is None else round(r["elev_m"], 1), "is_ev": bool(r["is_ev"])}
-        for r in conn.execute("SELECT t_est, dist_m, speed_est, elev_m, is_ev FROM route_points WHERE trip_id = ? ORDER BY idx",
-                              (trip_id,))
+        {
+            "t": round(r["t_est"], 1),
+            "km": round(r["dist_m"] / 1000, 3),
+            "speed_est": round(r["speed_est"] or 0, 1),
+            "elevation_m": None if r["elev_m"] is None else round(r["elev_m"], 1),
+            "is_ev": bool(r["is_ev"]),
+        }
+        for r in conn.execute(
+            "SELECT t_est, dist_m, speed_est, elev_m, is_ev FROM route_points WHERE trip_id = ? ORDER BY idx", (trip_id,)
+        )
     ]
     return d
 
@@ -158,35 +200,55 @@ def summary(conn: sqlite3.Connection, from_date: str | None = None, to_date: str
             COALESCE(SUM(ev_dist),0) ev_m, COALESCE(SUM(ev_time),0) ev_s, AVG(score_global) g, AVG(score_accel) a,
             AVG(score_brake) b, SUM(harsh_brake) hb, SUM(harsh_accel) ha, SUM(good_events) good, SUM(n_events) ne,
             SUM(night) night, COALESCE(SUM(overspeed_m),0) osm, COALESCE(SUM(highway_m),0) hwm,
-            COALESCE(SUM(climb_m),0) climb FROM trips{where}""", params).fetchone()
+            COALESCE(SUM(climb_m),0) climb FROM trips{where}""",
+        params,
+    ).fetchone()
     km = r["m"] / 1000
     fuel_l = r["ml"] / 1000
-    ev = conn.execute(f"SELECT type, good, COUNT(*) c FROM events{_range_clause(from_date, to_date, 'ts')[0]} GROUP BY type, good",
-                      _range_clause(from_date, to_date, "ts")[1]).fetchall()
+    ev = conn.execute(
+        f"SELECT type, good, COUNT(*) c FROM events{_range_clause(from_date, to_date, 'ts')[0]} GROUP BY type, good",
+        _range_clause(from_date, to_date, "ts")[1],
+    ).fetchall()
     counts = {(e["type"], bool(e["good"])): e["c"] for e in ev}
     other = sum(c for (t, _), c in counts.items() if t not in ("A", "B"))
     const = conn.execute("SELECT AVG(score_const) c FROM monthly_stats").fetchone()["c"]
 
     def pick(order: str) -> dict[str, Any] | None:
-        row = conn.execute(f"SELECT id, score_global, length_m FROM trips{where} AND length_m > 2000 ORDER BY {order} LIMIT 1"
-                           if where else f"SELECT id, score_global, length_m FROM trips WHERE length_m > 2000 ORDER BY {order} LIMIT 1",
-                           params).fetchone()
+        row = conn.execute(
+            f"SELECT id, score_global, length_m FROM trips{where} AND length_m > 2000 ORDER BY {order} LIMIT 1"
+            if where
+            else f"SELECT id, score_global, length_m FROM trips WHERE length_m > 2000 ORDER BY {order} LIMIT 1",
+            params,
+        ).fetchone()
         return None if row is None else {"id": row["id"], "score": row["score_global"], "km": round(row["length_m"] / 1000, 1)}
 
     longest = conn.execute(f"SELECT id, length_m FROM trips{where} ORDER BY length_m DESC LIMIT 1", params).fetchone()
     return {
-        "trips": r["n"], "km": round(km, 1), "hours": round(r["s"] / 3600, 1), "fuel_l": round(fuel_l, 1),
-        "l_per_100km": round(fuel_l / km * 100, 2) if km else None, "cost": _cost(fuel_l, settings),
+        "trips": r["n"],
+        "km": round(km, 1),
+        "hours": round(r["s"] / 3600, 1),
+        "fuel_l": round(fuel_l, 1),
+        "l_per_100km": round(fuel_l / km * 100, 2) if km else None,
+        "cost": _cost(fuel_l, settings),
         "ev_share_km": round(r["ev_m"] / r["m"], 3) if r["m"] else None,
         "ev_share_time": round(r["ev_s"] / r["s"], 3) if r["s"] else None,
         "scores": {"global": _r(r["g"]), "acceleration": _r(r["a"]), "braking": _r(r["b"]), "constant_speed": _r(const)},
-        "events": {"harsh_brake": counts.get(("B", False), 0), "harsh_accel": counts.get(("A", False), 0),
-                   "smooth_brake": counts.get(("B", True), 0), "smooth_accel": counts.get(("A", True), 0), "other": other},
+        "events": {
+            "harsh_brake": counts.get(("B", False), 0),
+            "harsh_accel": counts.get(("A", False), 0),
+            "smooth_brake": counts.get(("B", True), 0),
+            "smooth_accel": counts.get(("A", True), 0),
+            "other": other,
+        },
         "harsh_per_100km": round(((r["hb"] or 0) + (r["ha"] or 0)) / km * 100, 2) if km else None,
-        "night_trips": r["night"] or 0, "overspeed_km": round(r["osm"] / 1000, 1), "highway_km": round(r["hwm"] / 1000, 1),
+        "night_trips": r["night"] or 0,
+        "overspeed_km": round(r["osm"] / 1000, 1),
+        "highway_km": round(r["hwm"] / 1000, 1),
         "longest_trip": None if longest is None else {"id": longest["id"], "km": round(longest["length_m"] / 1000, 1)},
-        "best_trip": pick("score_global DESC, length_m DESC"), "worst_trip": pick("score_global ASC, length_m DESC"),
-        "climb_m": round(r["climb"], 0), "avg_speed": round(r["m"] / 1000 / (r["s"] / 3600), 1) if r["s"] else None,
+        "best_trip": pick("score_global DESC, length_m DESC"),
+        "worst_trip": pick("score_global ASC, length_m DESC"),
+        "climb_m": round(r["climb"], 0),
+        "avg_speed": round(r["m"] / 1000 / (r["s"] / 3600), 1) if r["s"] else None,
     }
 
 
@@ -194,8 +256,9 @@ def _r(v: float | None) -> int | None:
     return None if v is None else round(v)
 
 
-def hotspots(conn: sqlite3.Connection, from_date: str | None = None, to_date: str | None = None,
-             radius_m: float = 60.0, min_count: int = 2) -> list[dict[str, Any]]:
+def hotspots(
+    conn: sqlite3.Connection, from_date: str | None = None, to_date: str | None = None, radius_m: float = 60.0, min_count: int = 2
+) -> list[dict[str, Any]]:
     """Greedy clustering of harsh events: densest neighbourhoods first."""
     where, params = _range_clause(from_date, to_date, "ts")
     rows = conn.execute(f"SELECT * FROM events{where}", params).fetchall()
@@ -225,14 +288,22 @@ def hotspots(conn: sqlite3.Connection, from_date: str | None = None, to_date: st
         hb = sum(1 for m in ms if m["type"] == "B")
         ha = sum(1 for m in ms if m["type"] == "A")
         trips_here = sorted({m["trip_id"] for m in ms})
-        clusters.append({
-            "lat": round(lat, 6), "lon": round(lon, 6), "count": len(ms), "harsh_brake": hb, "harsh_accel": ha,
-            "good": len(near_good), "trips": trips_here,
-            "score": round(len(ms) / (len(ms) + len(near_good)), 2),
-            "label": max(labels, key=labels.get), "elevation_m": elevation.at(lat, lon),
-            "slope_avg": round(sum(m["slope"] or 0 for m in ms) / len(ms), 2),
-            "last_ts": max(m["ts"] for m in ms),
-        })
+        clusters.append(
+            {
+                "lat": round(lat, 6),
+                "lon": round(lon, 6),
+                "count": len(ms),
+                "harsh_brake": hb,
+                "harsh_accel": ha,
+                "good": len(near_good),
+                "trips": trips_here,
+                "score": round(len(ms) / (len(ms) + len(near_good)), 2),
+                "label": max(labels, key=labels.get),
+                "elevation_m": elevation.at(lat, lon),
+                "slope_avg": round(sum(m["slope"] or 0 for m in ms) / len(ms), 2),
+                "last_ts": max(m["ts"] for m in ms),
+            }
+        )
     clusters.sort(key=lambda c: (-c["count"], -c["score"]))
     return clusters
 
@@ -247,12 +318,16 @@ def heatmap(conn: sqlite3.Connection, from_date: str | None = None, to_date: str
         c["trips"] += 1
         c["km"] += (r["length_m"] or 0) / 1000
         c["harsh"] += (r["harsh_brake"] or 0) + (r["harsh_accel"] or 0)
-    weekday_hour = [{"weekday": k[0], "hour": k[1], "trips": v["trips"], "km": round(v["km"], 1), "harsh": v["harsh"]}
-                    for k, v in sorted(cells.items())]
+    weekday_hour = [
+        {"weekday": k[0], "hour": k[1], "trips": v["trips"], "km": round(v["km"], 1), "harsh": v["harsh"]}
+        for k, v in sorted(cells.items())
+    ]
     daily: dict[str, dict[str, Any]] = {}
     for r in conn.execute(f"SELECT * FROM trips{where} ORDER BY start_ts", params):
         day = datetime.fromisoformat(r["start_ts"]).astimezone().strftime("%Y-%m-%d")
-        d = daily.setdefault(day, {"date": day, "trips": 0, "km": 0.0, "fuel_l": 0.0, "harsh": 0, "ev_m": 0.0, "m": 0.0, "scores": []})
+        d = daily.setdefault(
+            day, {"date": day, "trips": 0, "km": 0.0, "fuel_l": 0.0, "harsh": 0, "ev_m": 0.0, "m": 0.0, "scores": []}
+        )
         d["trips"] += 1
         d["km"] += (r["length_m"] or 0) / 1000
         d["fuel_l"] += (r["fuel_ml"] or 0) / 1000
@@ -264,12 +339,18 @@ def heatmap(conn: sqlite3.Connection, from_date: str | None = None, to_date: str
     out = []
     for d in daily.values():
         w = sum(km for _, km in d["scores"]) or 1
-        out.append({
-            "date": d["date"], "trips": d["trips"], "km": round(d["km"], 1), "fuel_l": round(d["fuel_l"], 2),
-            "l_per_100km": round(d["fuel_l"] / d["km"] * 100, 2) if d["km"] > 0.5 else None,
-            "score": round(sum(s * km for s, km in d["scores"]) / w) if d["scores"] else None,
-            "harsh": d["harsh"], "ev_share": round(d["ev_m"] / d["m"], 3) if d["m"] else None,
-        })
+        out.append(
+            {
+                "date": d["date"],
+                "trips": d["trips"],
+                "km": round(d["km"], 1),
+                "fuel_l": round(d["fuel_l"], 2),
+                "l_per_100km": round(d["fuel_l"] / d["km"] * 100, 2) if d["km"] > 0.5 else None,
+                "score": round(sum(s * km for s, km in d["scores"]) / w) if d["scores"] else None,
+                "harsh": d["harsh"],
+                "ev_share": round(d["ev_m"] / d["m"], 3) if d["m"] else None,
+            }
+        )
     return {"weekday_hour": weekday_hour, "daily": out}
 
 
@@ -278,16 +359,105 @@ def monthly(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     for r in conn.execute("SELECT * FROM monthly_stats ORDER BY year, month"):
         km = (r["length_m"] or 0) / 1000
         fuel_l = (r["fuel_ml"] or 0) / 1000
-        out.append({
-            "year": r["year"], "month": r["month"], "km": round(km, 1), "hours": round((r["duration_s"] or 0) / 3600, 1),
-            "fuel_l": round(fuel_l, 1), "l_per_100km": round(fuel_l / km * 100, 2) if km else None,
-            "avg_speed": r["avg_speed"],
-            "scores": {"global": r["score_global"], "acceleration": r["score_accel"], "braking": r["score_brake"],
-                       "constant_speed": r["score_const"], "advice": r["score_advice"]},
-            "ev_share_km": round((r["ev_dist"] or 0) / (r["length_m"] or 1), 3),
-            "ev_share_time": round((r["ev_time"] or 0) / (r["duration_s"] or 1), 3),
-        })
+        out.append(
+            {
+                "year": r["year"],
+                "month": r["month"],
+                "km": round(km, 1),
+                "hours": round((r["duration_s"] or 0) / 3600, 1),
+                "fuel_l": round(fuel_l, 1),
+                "l_per_100km": round(fuel_l / km * 100, 2) if km else None,
+                "avg_speed": r["avg_speed"],
+                "scores": {
+                    "global": r["score_global"],
+                    "acceleration": r["score_accel"],
+                    "braking": r["score_brake"],
+                    "constant_speed": r["score_const"],
+                    "advice": r["score_advice"],
+                },
+                "ev_share_km": round((r["ev_dist"] or 0) / (r["length_m"] or 1), 3),
+                "ev_share_time": round((r["ev_time"] or 0) / (r["duration_s"] or 1), 3),
+            }
+        )
     return out
+
+
+_SEASONS = (
+    ("summer", "Summer", "Jun–Aug", (6, 7, 8)),
+    ("autumn", "Autumn", "Sep–Nov", (9, 10, 11)),
+    ("winter", "Winter", "Dec–Feb", (12, 1, 2)),
+    ("spring", "Spring", "Mar–May", (3, 4, 5)),
+)
+_MONTH_TO_SEASON = {m: sid for sid, _, _, months in _SEASONS for m in months}
+
+
+def _consumption_bucket(rows: list[sqlite3.Row], settings: dict[str, Any]) -> dict[str, Any]:
+    """Aggregate fuel consumption, EV share, and driving-mix metrics over trip rows."""
+    n = len(rows)
+    total_m = sum(r["length_m"] or 0 for r in rows)
+    total_s = sum(r["duration_s"] or 0 for r in rows)
+    total_ml = sum(r["fuel_ml"] or 0 for r in rows)
+    total_ev_m = sum(r["ev_dist"] or 0 for r in rows)
+    total_hw_m = sum(r["highway_m"] or 0 for r in rows)
+    short_n = sum(1 for r in rows if (r["length_m"] or 0) < 5000)
+    km = total_m / 1000
+    fuel_l = total_ml / 1000
+    cost = _cost(fuel_l, settings)
+    return {
+        "trips": n,
+        "km": round(km, 1),
+        "hours": round(total_s / 3600, 1),
+        "fuel_l": round(fuel_l, 2),
+        "l_per_100km": round(fuel_l / km * 100, 2) if km > 0 else None,
+        "cost": cost,
+        "cost_per_100km": round(cost / km * 100, 2) if km > 0 else None,
+        "ev_share_km": round(total_ev_m / total_m, 3) if total_m > 0 else None,
+        "avg_speed": round(km / (total_s / 3600), 1) if total_s > 0 else None,
+        "highway_share": round(total_hw_m / total_m, 3) if total_m > 0 else None,
+        "short_trips_share": round(short_n / n, 3) if n > 0 else None,
+    }
+
+
+def consumption(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Seasonal (summer/autumn/winter/spring), warm-vs-cold, and monthly fuel consumption."""
+    settings = get_settings(conn)
+    rows = conn.execute(
+        "SELECT start_ts, length_m, duration_s, fuel_ml, ev_dist, highway_m FROM trips ORDER BY start_ts"
+    ).fetchall()
+    by_season: dict[str, list[sqlite3.Row]] = {sid: [] for sid, _, _, _ in _SEASONS}
+    by_half: dict[str, list[sqlite3.Row]] = {"warm": [], "cold": []}
+    by_month: dict[tuple[int, int], list[sqlite3.Row]] = {}
+    for r in rows:
+        dt = datetime.fromisoformat(r["start_ts"]).astimezone()
+        sid = _MONTH_TO_SEASON[dt.month]
+        by_season[sid].append(r)
+        by_half["warm" if 4 <= dt.month <= 9 else "cold"].append(r)
+        by_month.setdefault((dt.year, dt.month), []).append(r)
+
+    seasons = [
+        {"id": sid, "label": label, "months_label": months_label, **_consumption_bucket(by_season[sid], settings)}
+        for sid, label, months_label, _ in _SEASONS
+    ]
+    halves = {
+        "warm": {"id": "warm", "label": "Warm half", "months_label": "Apr–Sep", **_consumption_bucket(by_half["warm"], settings)},
+        "cold": {"id": "cold", "label": "Cold half", "months_label": "Oct–Mar", **_consumption_bucket(by_half["cold"], settings)},
+    }
+    monthly_list = [
+        {
+            "ym": f"{year:04d}-{month:02d}",
+            "year": year,
+            "month": month,
+            "season": _MONTH_TO_SEASON[month],
+            **_consumption_bucket(mrows, settings),
+        }
+        for (year, month), mrows in sorted(by_month.items())
+    ]
+    return {
+        "seasons": seasons,
+        "halves": halves,
+        "monthly": monthly_list,
+        "overall": _consumption_bucket(rows, settings),
+    }
 
 
 def vehicle(conn: sqlite3.Connection) -> dict[str, Any] | None:
@@ -297,12 +467,19 @@ def vehicle(conn: sqlite3.Connection) -> dict[str, Any] | None:
     snap = conn.execute("SELECT * FROM snapshots ORDER BY ts DESC LIMIT 1").fetchone()
     first = conn.execute("SELECT MIN(start_ts) f, COUNT(*) n FROM trips").fetchone()
     return {
-        "vin": v["vin"], "model": v["model"], "model_year": v["model_year"], "manufactured": v["manufactured"],
+        "vin": v["vin"],
+        "model": v["model"],
+        "model_year": v["model_year"],
+        "manufactured": v["manufactured"],
         "color": v["color"],
-        "odometer_km": snap["odometer_km"] if snap else None, "fuel_level_pct": snap["fuel_pct"] if snap else None,
+        "odometer_km": snap["odometer_km"] if snap else None,
+        "fuel_level_pct": snap["fuel_pct"] if snap else None,
         "range_km": snap["range_km"] if snap else None,
         "last_location": {"lat": snap["lat"], "lon": snap["lon"], "ts": snap["ts"]} if snap else None,
-        "services": [{"date": s["date"], "mileage_km": s["mileage_km"], "provider": s["provider"]}
-                     for s in conn.execute("SELECT * FROM services ORDER BY date DESC")],
-        "history_from": (first["f"] or "")[:10], "trips_total": first["n"],
+        "services": [
+            {"date": s["date"], "mileage_km": s["mileage_km"], "provider": s["provider"]}
+            for s in conn.execute("SELECT * FROM services ORDER BY date DESC")
+        ],
+        "history_from": (first["f"] or "")[:10],
+        "trips_total": first["n"],
     }

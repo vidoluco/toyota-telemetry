@@ -18,15 +18,22 @@ export function cameraForBbox(bbox: [number, number, number, number], pitch = 0,
 export let COLORS = palette(getBasemap())
 
 /** Create a map with 3D terrain, hillshade and atmosphere. Resolves when the style is loaded. */
-export function createTerrainMap(container: HTMLElement, camera: maplibregl.CameraOptions, exaggeration = 1.35, basemap: Basemap = getBasemap()): Promise<maplibregl.Map> {
+export function createTerrainMap(container: HTMLElement, camera: maplibregl.CameraOptions, exaggeration = 1.35, basemap: Basemap = getBasemap(), embedded = false): Promise<maplibregl.Map> {
   COLORS = palette(basemap)
   const light = basemap === 'light'
   const map = new maplibregl.Map({
     container, style: STYLE_URLS[basemap], ...camera, maxPitch: 85, attributionControl: { compact: true },
     hash: false, fadeDuration: 150, maxCanvasSize: [8192, 8192],
+    // A map inside a scrolling page would swallow the one-finger scroll on a phone: there it pans with two.
+    cooperativeGestures: embedded && window.matchMedia('(max-width: 767px)').matches,
   })
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
   map.on('error', (e) => console.error('maplibre', e.error?.message ?? e))
+  // MapLibre opens the compact attribution until the first drag; on a phone that box covers the
+  // bottom of the map and the trip sheet. Start it folded: the (i) button still opens it.
+  if (window.matchMedia('(max-width: 767px)').matches) {
+    map.once('idle', () => container.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'))
+  }
   ;(window as unknown as { __telemetryMap?: maplibregl.Map }).__telemetryMap = map
   return new Promise((resolve) => {
     map.once('style.load', () => {

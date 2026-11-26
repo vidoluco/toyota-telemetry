@@ -1,11 +1,12 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { api } from './api/client'
 import type { Settings } from './api/types'
 import { RangePicker } from './components/RangePicker'
 import { clearApiCache, useApi } from './lib/useApi'
 import { Commute } from './pages/Commute'
+import { Consumption } from './pages/Consumption'
 import { Driver } from './pages/Driver'
 import { Insights } from './pages/Insights'
 import { Places } from './pages/Places'
@@ -28,7 +29,7 @@ export default function App() {
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={loc.pathname}
-            className={isMap ? 'absolute inset-0' : 'max-w-[1400px] mx-auto px-5 py-5'}
+            className={isMap ? 'absolute inset-0' : 'max-w-[1400px] mx-auto px-3 py-4 md:px-5 md:py-5'}
             initial={reduced ? false : { opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={reduced ? undefined : { opacity: 0, y: -4 }}
@@ -43,6 +44,7 @@ export default function App() {
               <Route path="/places" element={<Places />} />
               <Route path="/commute/:from/:to" element={<Commute />} />
               <Route path="/tank" element={<Tank />} />
+              <Route path="/consumption" element={<Consumption />} />
               <Route path="/insights" element={<Insights />} />
             </Routes>
           </motion.div>
@@ -70,24 +72,30 @@ function priceTitle(s?: Settings): string {
 
 function TopBar() {
   const { data: vehicle } = useApi('vehicle', () => api.vehicle())
+  const { pathname } = useLocation()
+  const nav = useRef<HTMLElement>(null)
+  // Phone: the tab strip scrolls sideways, so bring the current page's tab into view.
+  useEffect(() => { nav.current?.querySelector('.active')?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' }) }, [pathname])
   const year = vehicle?.manufactured?.slice(0, 4)
   return (
     <header className="material sticky top-0 z-30 border-x-0 border-t-0 rounded-none">
-      <div className="max-w-[1400px] mx-auto px-5 h-14 flex items-center gap-4">
-        <NavLink to="/" className="flex items-baseline gap-2 mr-2" title={vehicle?.model ?? undefined}>
+      <div className="max-w-[1400px] mx-auto px-3 md:px-5 py-2 xl:py-0 xl:h-14 flex flex-wrap xl:flex-nowrap items-center gap-x-4 gap-y-2">
+        <NavLink to="/" className="order-1 flex items-baseline gap-2 mr-2" title={vehicle?.model ?? undefined}>
           <span className="title">{shortModel(vehicle?.model) ?? 'Toyota'}</span>
           <span className="small hidden sm:inline">{[year, vehicle?.color].filter(Boolean).join(' · ')}</span>
         </NavLink>
-        <nav className="flex items-center gap-0.5 text-sm">
-          {([['/', 'Overview'], ['/map', 'Map'], ['/trips', 'Trips'], ['/places', 'Places'], ['/driver', 'Driver'], ['/tank', 'Tank'], ['/insights', 'Insights']] as [string, string][]).map(([to, label]) => (
+        <nav ref={nav} className="order-3 xl:order-2 w-full xl:w-auto flex items-center gap-0.5 text-sm overflow-x-auto no-scrollbar -mx-1 px-1 xl:mx-0 xl:px-0">
+          {([['/', 'Overview'], ['/map', 'Map'], ['/trips', 'Trips'], ['/places', 'Places'], ['/driver', 'Driver'], ['/tank', 'Tank'], ['/consumption', 'Consumption'], ['/insights', 'Insights']] as [string, string][]).map(([to, label]) => (
             <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>{label}</NavLink>
           ))}
         </nav>
-        <div className="ml-auto flex items-center gap-2">
-          <RangePicker />
+        <div className="order-2 xl:order-3 ml-auto flex items-center gap-2">
+          <div className="hidden xl:block"><RangePicker /></div>
           <SettingsButton />
           <SyncButton />
         </div>
+        {/* Below xl the header cannot hold tabs and range in one row: the range gets its own row. */}
+        <div className="order-4 w-full xl:hidden"><RangePicker /></div>
       </div>
     </header>
   )

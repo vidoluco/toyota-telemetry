@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { Chart, axisStyle } from '../components/Chart'
 import { Kpi } from '../components/Kpi'
 import { Panel } from '../components/Panel'
+import { Toyota3D, detectToyotaModel, type ToyotaModelId } from '../components/Toyota3D'
 import { WEEKDAYS, fmt, isoWeek, scoreColor } from '../lib/format'
 import { rangeKey, useRange } from '../lib/range'
 import { useApi } from '../lib/useApi'
@@ -17,6 +18,14 @@ export function Overview() {
   const { data: v } = useApi('vehicle', () => api.vehicle())
   const { data: settings } = useApi('settings', () => api.settings())
   const cur = settings?.currency ?? ''
+  const [pickedModel, setPickedModel] = useState<ToyotaModelId | null>(() => {
+    try { return (localStorage.getItem('tt_3d_model') as ToyotaModelId | null) } catch { return null }
+  })
+  const activeModel = pickedModel ?? detectToyotaModel(v?.model)
+  const selectModel = (id: ToyotaModelId) => {
+    setPickedModel(id)
+    try { localStorage.setItem('tt_3d_model', id) } catch { /* ignore */ }
+  }
 
   const weekly = useMemo(() => {
     const w = new Map<string, { km: number; fuel: number; harsh: number }>()
@@ -45,6 +54,32 @@ export function Overview() {
         </div>
       </div>
 
+      <div className="grid lg:grid-cols-3 gap-4 items-stretch">
+        <div className="lg:col-span-2">
+          <Toyota3D
+            modelId={activeModel}
+            colorName={v?.color}
+            onSelect={selectModel}
+            stats={{ odometerKm: v?.odometer_km, fuelPct: v?.fuel_level_pct, rangeKm: v?.range_km }}
+          />
+        </div>
+        <Panel title="The car" right={<Link to="/map" className="small underline">open map</Link>}>
+          <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row gap-4">
+            <div className="flex-1 grid gap-2">
+              <Row k="Model" v={v ? `${v.model?.replace(/^\d{4} Toyota /, '') ?? ''}` : '…'} />
+              <Row k="Built" v={v?.manufactured ? fmt.dateLong(v.manufactured) : '…'} />
+              <Row k="Fuel" v={v ? `${v.fuel_level_pct}% · ${fmt.int(v.range_km)} km range` : '…'} />
+              <Row k="Odometer" v={v ? `${fmt.int(v.odometer_km)} km` : '…'} />
+              <Row k="Last service" v={v?.services?.[0] ? `${fmt.date(v.services[0].date)} · ${fmt.int(v.services[0].mileage_km)} km` : '–'} />
+              <Row k="Parked" v={v?.last_location ? `${fmt.dateLong(v.last_location.ts)} ${fmt.time(v.last_location.ts)}` : '–'} />
+            </div>
+            <div className="w-full h-40 sm:w-40 lg:w-full lg:h-36 xl:w-40 xl:h-40 rounded-xl overflow-hidden border border-line shrink-0">
+              {v?.last_location && <MiniMap lat={v.last_location.lat} lon={v.last_location.lon} />}
+            </div>
+          </div>
+        </Panel>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
         <Kpi label="Distance" value={s?.km} unit="km" format={(x) => fmt.int(x)} hint={s ? `${s.trips} trips · ${fmt.n1(s.hours)} h` : undefined} />
         <Kpi label="Consumption" value={s?.l_per_100km} unit="l/100km" format={(x) => fmt.n2(x)} hint={s ? `${fmt.n1(s.fuel_l)} l total` : undefined} />
@@ -67,25 +102,20 @@ export function Overview() {
             series: [{ type: 'line', data: scoreTrend, smooth: 0.35, symbol: 'circle', symbolSize: 5, lineStyle: { width: 2 }, areaStyle: { opacity: 0.08 }, markLine: { silent: true, symbol: 'none', lineStyle: { color: 'rgba(255,255,255,0.18)', type: 'dashed' }, label: { color: '#96a2b1', formatter: 'avg {c}' }, data: [{ type: 'average' }] } }],
           }} />
         </Panel>
-        <Panel title="The car" right={<Link to="/map" className="small underline">open map</Link>}>
-          <div className="flex gap-4">
-            <div className="flex-1 grid gap-2">
-              <Row k="Model" v={v ? `${v.model?.replace(/^\d{4} Toyota /, '') ?? ''}` : '…'} />
-              <Row k="Built" v={v?.manufactured ? fmt.dateLong(v.manufactured) : '…'} />
-              <Row k="Fuel" v={v ? `${v.fuel_level_pct}% · ${fmt.int(v.range_km)} km range` : '…'} />
-              <Row k="Odometer" v={v ? `${fmt.int(v.odometer_km)} km` : '…'} />
-              <Row k="Last service" v={v?.services?.[0] ? `${fmt.date(v.services[0].date)} · ${fmt.int(v.services[0].mileage_km)} km` : '–'} />
-              <Row k="Parked" v={v?.last_location ? `${fmt.dateLong(v.last_location.ts)} ${fmt.time(v.last_location.ts)}` : '–'} />
-            </div>
-            <div className="w-40 h-40 rounded-xl overflow-hidden border border-line shrink-0">
-              {v?.last_location && <MiniMap lat={v.last_location.lat} lon={v.last_location.lon} />}
-            </div>
-          </div>
+        <Panel title="When you drive hard (harsh events)">
+          <Chart className="h-56 w-full" option={{
+            grid: { left: 34, right: 10, top: 8, bottom: 40 },
+            xAxis: { type: 'category', data: Array.from({ length: 24 }, (_, h) => h), ...axisStyle, splitLine: { show: false }, axisLabel: { ...axisStyle.axisLabel, interval: 2 } },
+            yAxis: { type: 'category', data: WEEKDAYS, ...axisStyle, splitLine: { show: false } },
+            tooltip: { formatter: (p: unknown) => { const d = (p as { data: number[] }).data; return `${WEEKDAYS[d[1] ?? 0]} ${d[0]}:00 · ${d[2]} harsh · ${d[3]} trips · ${fmt.n1(d[4])} km` } },
+            visualMap: { min: 0, max: Math.max(1, ...harshHeat.map((c) => c[2] ?? 0)), show: false, inRange: { color: ['rgba(255,90,54,0.08)', '#ff5a36'] } },
+            series: [{ type: 'heatmap', data: harshHeat, itemStyle: { borderRadius: 3, borderColor: '#07090d', borderWidth: 1.5 } }],
+          }} />
         </Panel>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
-        <Panel title="Kilometres and fuel, per week" className="lg:col-span-2">
+        <Panel title="Kilometres and fuel, per week" className="lg:col-span-3">
           <Chart className="h-56 w-full" option={{
             grid: { left: 40, right: 40, top: 18, bottom: 28 },
             legend: { top: 0, right: 0, textStyle: { color: '#96a2b1' }, itemWidth: 10, itemHeight: 10 },
@@ -97,16 +127,6 @@ export function Overview() {
               { name: 'litres', type: 'line', yAxisIndex: 1, data: weekly.map(([, x]) => +x.fuel.toFixed(1)), smooth: 0.3, symbol: 'circle', symbolSize: 5, lineStyle: { color: '#c9b48a', width: 2 }, itemStyle: { color: '#c9b48a' } },
               { name: 'harsh events', type: 'line', yAxisIndex: 1, data: weekly.map(([, x]) => x.harsh), smooth: 0.3, symbol: 'none', lineStyle: { color: '#ff5a36', width: 1.5, type: 'dashed' }, itemStyle: { color: '#ff5a36' } },
             ],
-          }} />
-        </Panel>
-        <Panel title="When you drive hard (harsh events)">
-          <Chart className="h-56 w-full" option={{
-            grid: { left: 34, right: 10, top: 8, bottom: 40 },
-            xAxis: { type: 'category', data: Array.from({ length: 24 }, (_, h) => h), ...axisStyle, splitLine: { show: false }, axisLabel: { ...axisStyle.axisLabel, interval: 2 } },
-            yAxis: { type: 'category', data: WEEKDAYS, ...axisStyle, splitLine: { show: false } },
-            tooltip: { formatter: (p: unknown) => { const d = (p as { data: number[] }).data; return `${WEEKDAYS[d[1] ?? 0]} ${d[0]}:00 · ${d[2]} harsh · ${d[3]} trips · ${fmt.n1(d[4])} km` } },
-            visualMap: { min: 0, max: Math.max(1, ...harshHeat.map((c) => c[2] ?? 0)), show: false, inRange: { color: ['rgba(255,90,54,0.08)', '#ff5a36'] } },
-            series: [{ type: 'heatmap', data: harshHeat, itemStyle: { borderRadius: 3, borderColor: '#07090d', borderWidth: 1.5 } }],
           }} />
         </Panel>
       </div>

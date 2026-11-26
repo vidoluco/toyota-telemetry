@@ -31,7 +31,9 @@ export function Places() {
 
   useEffect(() => {
     if (!box.current || mapRef.current) return
-    const m = new maplibregl.Map({ container: box.current, style: STYLE_URLS[getBasemap()], center: [26.08, 44.44], zoom: 10.5, attributionControl: { compact: true } })
+    const m = new maplibregl.Map({ container: box.current, style: STYLE_URLS[getBasemap()], center: [26.08, 44.44], zoom: 10.5, attributionControl: { compact: true },
+      // Inside a scrolling page: on a phone one finger scrolls the page, two move the map.
+      cooperativeGestures: window.matchMedia('(max-width: 767px)').matches })
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
     mapRef.current = m
     return () => { m.remove(); mapRef.current = null }

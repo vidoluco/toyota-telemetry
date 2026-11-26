@@ -39,7 +39,8 @@ export function Trips() {
   }, [data, sort])
   return (
     <Panel title={`${rows.length} trips`} className="!p-0">
-      <div>
+      {/* Phone: the wide table scrolls inside its panel; desktop keeps the sticky header on the page scroll. */}
+      <div className="overflow-x-auto md:overflow-visible">
         <table className="trips">
           <thead><tr>{cols.map((c) => (
             <th key={c.key} className={c.align === 'right' ? 'text-right' : ''} onClick={() => setSort((s) => ({ key: c.key, dir: s.key === c.key ? (s.dir === 1 ? -1 : 1) : -1 }))}>

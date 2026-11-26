@@ -205,3 +205,36 @@ export type Digest = {
   journeys: (Journey & { trips_this_week: number })[]; fills: Fill[]; worst_trip: Trip | null; best_trip: Trip | null
   days: Heatmap['daily']
 }
+
+// ---- seasonal consumption
+export type SeasonId = 'summer' | 'autumn' | 'winter' | 'spring'
+export type ConsumptionBucket = {
+  trips: number
+  km: number
+  hours: number
+  fuel_l: number
+  l_per_100km: number | null
+  cost: number
+  cost_per_100km: number | null
+  ev_share_km: number | null
+  avg_speed: number | null
+  highway_share: number | null
+  short_trips_share: number | null
+}
+export type SeasonConsumption = ConsumptionBucket & {
+  id: SeasonId | 'warm' | 'cold'
+  label: string
+  months_label: string
+}
+export type MonthConsumption = ConsumptionBucket & {
+  ym: string
+  year: number
+  month: number
+  season: SeasonId
+}
+export type ConsumptionReport = {
+  seasons: SeasonConsumption[]
+  halves: { warm: SeasonConsumption; cold: SeasonConsumption }
+  monthly: MonthConsumption[]
+  overall: ConsumptionBucket
+}

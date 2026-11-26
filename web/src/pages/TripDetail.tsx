@@ -26,7 +26,7 @@ export function TripDetail() {
     if (!box.current || !t || mapRef.current) return
     let map: maplibregl.Map | undefined
     const center: [number, number] = [(t.bbox[0] + t.bbox[2]) / 2, (t.bbox[1] + t.bbox[3]) / 2]
-    createTerrainMap(box.current, { center, zoom: 12, pitch: 0, bearing: 0 }, 1.15).then((m) => {
+    createTerrainMap(box.current, { center, zoom: 12, pitch: 0, bearing: 0 }, 1.15, undefined, true).then((m) => {
       map = m; mapRef.current = m
       m.addSource('route', { type: 'geojson', data: t.route })
       m.addSource('events', { type: 'geojson', data: t.events })

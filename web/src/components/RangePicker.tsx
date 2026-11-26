@@ -20,9 +20,12 @@ export function RangePicker() {
       {presets.map((p) => (
         <button key={p.label} className="btn" aria-pressed={active(p.days)} onClick={() => pick(p.days)}>{p.label}</button>
       ))}
-      <input type="date" className="field" value={range.from ?? ''} max={today} onChange={(e) => setRange({ ...range, from: e.target.value || undefined })} />
-      <span className="small">to</span>
-      <input type="date" className="field" value={range.to ?? ''} max={today} onChange={(e) => setRange({ ...range, to: e.target.value || undefined })} />
+      {/* Custom dates are a desk task: on a phone the presets are enough and keep the header to one row. */}
+      <span className="hidden md:inline-flex items-center gap-1.5">
+        <input type="date" className="field" value={range.from ?? ''} max={today} onChange={(e) => setRange({ ...range, from: e.target.value || undefined })} />
+        <span className="small">to</span>
+        <input type="date" className="field" value={range.to ?? ''} max={today} onChange={(e) => setRange({ ...range, to: e.target.value || undefined })} />
+      </span>
     </div>
   )
 }
