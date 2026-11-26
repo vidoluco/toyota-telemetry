@@ -61,11 +61,10 @@ describe('app shell', () => {
     expect(await screen.findByText('Summer vs Winter')).toBeInTheDocument()
     expect(await screen.findByText('+0.60 vs Summer')).toBeInTheDocument()
   })
-  it('renders the 3D Toyota selector on overview', async () => {
+  it('renders the 3D Toyota model automatically on overview', async () => {
     render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>)
     expect(await screen.findByTitle('3D model of Toyota Yaris')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Yaris' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Corolla' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'RAV4' })).toBeInTheDocument()
+    expect(screen.getByText('Toyota Yaris')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Corolla' })).not.toBeInTheDocument()
   })
 })

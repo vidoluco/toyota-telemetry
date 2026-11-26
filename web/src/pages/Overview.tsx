@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { Chart, axisStyle } from '../components/Chart'
 import { Kpi } from '../components/Kpi'
 import { Panel } from '../components/Panel'
-import { Toyota3D, detectToyotaModel, type ToyotaModelId } from '../components/Toyota3D'
+import { Toyota3D, detectToyotaModel } from '../components/Toyota3D'
 import { WEEKDAYS, fmt, isoWeek, scoreColor } from '../lib/format'
 import { rangeKey, useRange } from '../lib/range'
 import { useApi } from '../lib/useApi'
@@ -18,14 +18,6 @@ export function Overview() {
   const { data: v } = useApi('vehicle', () => api.vehicle())
   const { data: settings } = useApi('settings', () => api.settings())
   const cur = settings?.currency ?? ''
-  const [pickedModel, setPickedModel] = useState<ToyotaModelId | null>(() => {
-    try { return (localStorage.getItem('tt_3d_model') as ToyotaModelId | null) } catch { return null }
-  })
-  const activeModel = pickedModel ?? detectToyotaModel(v?.model)
-  const selectModel = (id: ToyotaModelId) => {
-    setPickedModel(id)
-    try { localStorage.setItem('tt_3d_model', id) } catch { /* ignore */ }
-  }
 
   const weekly = useMemo(() => {
     const w = new Map<string, { km: number; fuel: number; harsh: number }>()
@@ -56,12 +48,7 @@ export function Overview() {
 
       <div className="grid lg:grid-cols-3 gap-4 items-stretch">
         <div className="lg:col-span-2">
-          <Toyota3D
-            modelId={activeModel}
-            colorName={v?.color}
-            onSelect={selectModel}
-            stats={{ odometerKm: v?.odometer_km, fuelPct: v?.fuel_level_pct, rangeKm: v?.range_km }}
-          />
+          <Toyota3D modelId={detectToyotaModel(v?.model)} colorName={v?.color} />
         </div>
         <Panel title="The car" right={<Link to="/map" className="small underline">open map</Link>}>
           <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row gap-4">

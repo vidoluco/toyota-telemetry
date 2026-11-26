@@ -194,12 +194,9 @@ type SavedChannels = Record<string, { color?: [number, number, number]; texture?
 export function Toyota3D({
   modelId,
   colorName,
-  onSelect,
 }: {
   modelId: ToyotaModelId
   colorName?: string | null
-  onSelect: (id: ToyotaModelId) => void
-  stats?: { odometerKm?: number | null; fuelPct?: number | null; rangeKm?: number | null }
 }) {
   const spec = TOYOTA_MODELS.find((m) => m.id === modelId) ?? TOYOTA_MODELS[0]!
   const [pickedColor, setPickedColor] = useState<string | null>(() => {
@@ -327,17 +324,9 @@ export function Toyota3D({
   return (
     <section className="panel p-4 flex flex-col gap-3">
       <header className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-1 flex-wrap">
-          {TOYOTA_MODELS.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              className={`btn !py-1 !px-2.5 text-xs ${modelId === m.id ? 'on' : ''}`}
-              onClick={() => onSelect(m.id)}
-            >
-              {m.name}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="eyebrow text-ink">Toyota {spec.name}</span>
+          <span className="chip">{spec.segment}</span>
         </div>
 
         <div className="flex items-center gap-2">
