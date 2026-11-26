@@ -7,6 +7,10 @@ type ModelSpec = {
   name: string
   segment: string
   sketchfabUid: string
+  modelTitle: string
+  modelUrl: string
+  author: string
+  authorUrl: string
 }
 
 export const TOYOTA_MODELS: ModelSpec[] = [
@@ -15,30 +19,50 @@ export const TOYOTA_MODELS: ModelSpec[] = [
     name: 'Yaris',
     segment: 'Hybrid Hatchback',
     sketchfabUid: 'b702373da1274645a8c57da1cac8bf4d',
+    modelTitle: 'Toyota Yaris 2020',
+    modelUrl: 'https://sketchfab.com/3d-models/toyota-yaris-2020-b702373da1274645a8c57da1cac8bf4d',
+    author: 'SQUIR3D',
+    authorUrl: 'https://sketchfab.com/SQUIR3D',
   },
   {
     id: 'yaris-cross',
     name: 'Yaris Cross',
     segment: 'Compact SUV',
     sketchfabUid: 'cacdb1efe9244b2597611e24c7820b84',
+    modelTitle: 'Toyota Yaris Cross 2021',
+    modelUrl: 'https://sketchfab.com/3d-models/toyota-yaris-cross-2021-cacdb1efe9244b2597611e24c7820b84',
+    author: 'SQUIR3D',
+    authorUrl: 'https://sketchfab.com/SQUIR3D',
   },
   {
     id: 'corolla',
     name: 'Corolla',
     segment: 'Hybrid',
     sketchfabUid: '6d7d34ee42734d1ab28a6b1f1c5fc4fc',
+    modelTitle: 'Toyota Corolla 2020',
+    modelUrl: 'https://sketchfab.com/3d-models/toyota-corolla-2020-6d7d34ee42734d1ab28a6b1f1c5fc4fc',
+    author: 'ItsDiyor',
+    authorUrl: 'https://sketchfab.com/ItsDiyor',
   },
   {
     id: 'chr',
     name: 'C-HR',
     segment: 'Coupe Crossover',
     sketchfabUid: 'f426a2f495fc41c8aaef33574d232567',
+    modelTitle: 'Toyota C-HR GR sport 2021',
+    modelUrl: 'https://sketchfab.com/3d-models/toyota-c-hr-gr-sport-2021-f426a2f495fc41c8aaef33574d232567',
+    author: 'SQUIR3D',
+    authorUrl: 'https://sketchfab.com/SQUIR3D',
   },
   {
     id: 'rav4',
     name: 'RAV4',
     segment: 'Hybrid SUV',
     sketchfabUid: 'ed155ad0cb7d447085a519eaff9aa2df',
+    modelTitle: '2023 Toyota RAV4 Hybrid',
+    modelUrl: 'https://sketchfab.com/3d-models/2023-toyota-rav4-hybrid-ed155ad0cb7d447085a519eaff9aa2df',
+    author: 'Ddiaz Design',
+    authorUrl: 'https://sketchfab.com/ddiaz-design',
   },
 ]
 
@@ -348,6 +372,20 @@ export function Toyota3D({
           allow="autoplay; fullscreen; xr-spatial-tracking"
           allowFullScreen
         />
+      </div>
+
+      <div className="flex items-center justify-between gap-2 small">
+        <span>
+          3D model:{' '}
+          <a href={spec.modelUrl} target="_blank" rel="noreferrer" className="underline hover:text-ink">
+            {spec.modelTitle}
+          </a>{' '}
+          by{' '}
+          <a href={spec.authorUrl} target="_blank" rel="noreferrer" className="underline hover:text-ink">
+            {spec.author}
+          </a>{' '}
+          on Sketchfab
+        </span>
       </div>
     </section>
   )
