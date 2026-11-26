@@ -199,9 +199,7 @@ export function Toyota3D({
   colorName?: string | null
 }) {
   const spec = TOYOTA_MODELS.find((m) => m.id === modelId) ?? TOYOTA_MODELS[0]!
-  const [pickedColor, setPickedColor] = useState<string | null>(() => {
-    try { return localStorage.getItem('tt_3d_paint') } catch { return null }
-  })
+  const [pickedColor, setPickedColor] = useState<string | null>(null)
   const activeColorId = pickedColor ?? detectPaintId(colorName)
   const activeColor = TOYOTA_COLORS.find((c) => c.id === activeColorId) ?? TOYOTA_COLORS[0]!
 
@@ -318,7 +316,6 @@ export function Toyota3D({
 
   const selectColor = (id: string) => {
     setPickedColor(id)
-    try { localStorage.setItem('tt_3d_paint', id) } catch { /* ignore */ }
   }
 
   return (
